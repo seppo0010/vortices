@@ -2,12 +2,15 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"reflect"
 	"regexp"
 	"runtime"
+	"sort"
+	"strings"
 
 	dc "github.com/seppo0010/vortices/dockercompose"
 )
@@ -50,12 +53,14 @@ func runTests(image string) bool {
 	return passed
 }
 
-func startImage(image string) ([]string, error) {
+func startImage(image string) ([]*Computer, error) {
 	setup := dc.NewSetup()
 	network1 := setup.NewNetwork("network1")
 	network2 := setup.NewNetwork("network2")
-	setup.NewComputer("computer", image, []*dc.Network{network1, network2})
-	setup.NewComputer("computer2", image, []*dc.Network{network1})
+	computers := []*Computer{
+		&Computer{Computer: setup.NewComputer("computer", image, []*dc.Network{network1, network2})},
+		&Computer{Computer: setup.NewComputer("computer2", image, []*dc.Network{network1})},
+	}
 	f, err := os.Create("docker-compose.yml")
 	if err != nil {
 		return nil, err
@@ -74,18 +79,52 @@ func startImage(image string) ([]string, error) {
 		log.Fatalf("failed to start docker-compose: %s", err.Error())
 	}
 
-	submatches := regexp.MustCompile(`(?:Starting|Creating) ([A-Za-z0-9_]*)`).FindAllStringSubmatch(string(stderr.Bytes()), -1)
-	if len(submatches) == 0 {
-		log.Fatalf("could not find docker Container ID. Full output:\n%s", string(stderr.Bytes()))
+	for _, computer := range computers {
+		cmd = exec.Command("docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", computer.Name)
+		var stdout bytes.Buffer
+		cmd.Stdout = &stdout
+		err = cmd.Run()
+		if err != nil {
+			log.Fatalf("failed to run docker inspect: %s", err.Error())
+		}
+		computer.IPAddresses = strings.Split(strings.Trim(string(stdout.Bytes()), " \n"), " ")
 	}
 
-	return nil, nil
+	return computers, nil
+}
+
+func checkCandidatesMatch(candidates []*Candidate, ipaddresses []string) error {
+	if len(candidates) != len(ipaddresses) {
+		return fmt.Errorf("expected %d candidates, got %d", len(ipaddresses), len(candidates))
+	}
+	addresses := make([]string, len(candidates))
+	for i, candidate := range candidates {
+		addresses[i] = candidate.Address
+	}
+	sort.Strings(addresses)
+	sort.Strings(ipaddresses)
+	for i, addr1 := range addresses {
+		if addr1 != ipaddresses[i] {
+			return fmt.Errorf("ip addresses do not match\ncontainer has: %#v\nreceived: %#v", ipaddresses, addresses)
+		}
+	}
+	return nil
 }
 
 func testICECandidatesGather(image string) error {
-	_, err := startImage(image)
+	computers, err := startImage(image)
 	if err != nil {
 		return err
+	}
+	for _, computer := range computers {
+		candidates, err := computer.GatherCandidates()
+		if err != nil {
+			return err
+		}
+		err = checkCandidatesMatch(candidates, computer.IPAddresses)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
