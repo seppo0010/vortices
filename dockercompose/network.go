@@ -12,4 +12,3 @@ type Setup struct {
 	Computers []*Computer
 	Networks  []*Network
 }
-

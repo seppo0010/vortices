@@ -1,17 +1,17 @@
 package dockercompose
 
 import (
-    "testing"
+	"testing"
 
-    "github.com/stretchr/testify/assert" 
+	"github.com/stretchr/testify/assert"
 )
 
 func TestComputerYMLTwoNetworks(t *testing.T) {
-    yml := newComputer("computer", []*Network{
-        newNetwork("network1"),
-        newNetwork("network2"),
-    }).ToYML()
-    assert.Equal(t, yml, `  computer:
+	yml := newComputer("computer", "ubuntu", []*Network{
+		newNetwork("network1"),
+		newNetwork("network2"),
+	}).ToYML()
+	assert.Equal(t, yml, `  computer:
     image: ubuntu
     networks:
       - network1
