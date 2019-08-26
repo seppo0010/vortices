@@ -15,13 +15,9 @@ import (
 	dc "github.com/seppo0010/vortices/dockercompose"
 )
 
-func main() {
-	if len(os.Args) < 2 {
-		log.Fatalf("usage: %s <path to target>", os.Args[0])
-	}
-	path := os.Args[1]
+func buildDockerPath(path string) (string, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		log.Fatalf("path %s does not exist", path)
+		return "", fmt.Errorf("path %s does not exist", path)
 	}
 
 	var out bytes.Buffer
@@ -29,24 +25,41 @@ func main() {
 	cmd.Stdout = &out
 	err := cmd.Run()
 	if err != nil {
-		log.Fatalf("failed to build docker image at path %s: %s", path, err.Error())
+		return "", fmt.Errorf("failed to build docker image at path %s: %s", path, err.Error())
 	}
 	submatches := regexp.MustCompile(`Successfully built ([a-fA-F0-9]*)`).FindStringSubmatch(string(out.Bytes()))
 	if len(submatches) == 0 {
-		log.Fatalf("could not find docker image tag. Full output:\n%s", out.Bytes)
+		return "", fmt.Errorf("could not find docker image tag. Full output:\n%s", out.Bytes)
 	}
 
-	if !runTests(submatches[1]) {
+	return submatches[1], nil
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		log.Fatalf("usage: %s <path to target>", os.Args[0])
+	}
+	router, err := buildDockerPath("./router")
+	if err != nil {
+		log.Fatalf("%s", err.Error())
+	}
+
+	image, err := buildDockerPath(os.Args[1])
+	if err != nil {
+		log.Fatalf("%s", err.Error())
+	}
+
+	if !runTests(image, router) {
 		os.Exit(1)
 	}
 }
 
-func runTests(image string) bool {
+func runTests(image, router string) bool {
 	passed := true
-	for _, test := range []func(s string) error{testICECandidatesGather} {
+	for _, test := range []func(image, router string) error{testICECandidatesGather, testGateway} {
 		testName := runtime.FuncForPC(reflect.ValueOf(test).Pointer()).Name()
 		log.Printf("running test %v", testName)
-		err := test(image)
+		err := test(image, router)
 		if err != nil {
 			log.Printf("test %v failed: %s", testName, err.Error())
 			passed = false
@@ -91,6 +104,16 @@ func startSetup(setup *dc.Setup) ([]*Computer, error) {
 		}
 	}
 
+    for _, router := range setup.Routers {
+		cmd = exec.Command("./router/start-router", router.Name)
+        cmd.Stdout = os.Stderr
+        cmd.Stderr = os.Stderr
+		err = cmd.Run()
+		if err != nil {
+			log.Fatalf("failed to start router: %s", err.Error())
+		}
+    }
+
 	return computers, nil
 }
 
@@ -112,7 +135,8 @@ func checkCandidatesMatch(candidates []*Candidate, ipaddresses []string) error {
 	return nil
 }
 
-func testICECandidatesGather(image string) error {
+func testICECandidatesGather(image, router string) error {
+	return nil
 	setup := dc.NewSetup()
 	network1 := setup.NewNetwork("network1")
 	network2 := setup.NewNetwork("network2")
@@ -131,6 +155,19 @@ func testICECandidatesGather(image string) error {
 		if err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func testGateway(image, router string) error {
+	setup := dc.NewSetup()
+	network1 := setup.NewNetwork("network1")
+	setup.NewRouter("myrouter", router, map[string]string{"network1": "172.19.0.8"}, []*dc.Network{network1})
+	computer := setup.NewComputer("computer", image, "", []*dc.Network{network1})
+	computer.Gateway = "172.19.0.8"
+	_, err := startSetup(setup)
+	if err != nil {
+		return err
 	}
 	return nil
 }

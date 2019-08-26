@@ -24,12 +24,21 @@ func (s *Setup) NewComputer(name, image, gateway string, networks []*Network) *C
 	return computer
 }
 
+func (s *Setup) NewRouter(name, image string, networkIPv4 map[string]string, networks []*Network) *Router {
+	router := newRouter(name, image, networkIPv4, networks)
+	s.Routers = append(s.Routers, router)
+	return router
+}
+
 func (s *Setup) ToYML() string {
 	yml := `
 version: "2"
 services:
 `
 	for _, comp := range s.Computers {
+		yml += comp.ToYML()
+	}
+	for _, comp := range s.Routers {
 		yml += comp.ToYML()
 	}
 	yml += "networks:\n"

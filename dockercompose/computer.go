@@ -3,9 +3,10 @@ package dockercompose
 import "fmt"
 
 type BaseComputer struct {
-	Name     string
-	Image    string
-	Networks []*Network
+	Name        string
+	Image       string
+	Networks    []*Network
+	NetworkIPv4 map[string]string
 }
 
 func (comp *BaseComputer) ToYML() string {
@@ -13,7 +14,10 @@ func (comp *BaseComputer) ToYML() string {
 	if len(comp.Networks) > 0 {
 		networks = "    networks:\n"
 		for _, network := range comp.Networks {
-			networks += fmt.Sprintf("      - %s\n", network.Name)
+			networks += fmt.Sprintf("      %s:\n", network.Name)
+			if ipv4, found := comp.NetworkIPv4[network.Name]; found {
+				networks += fmt.Sprintf("        ipv4_address: %s\n", ipv4)
+			}
 		}
 	}
 	return fmt.Sprintf(`  %s:

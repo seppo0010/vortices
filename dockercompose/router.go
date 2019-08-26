@@ -4,8 +4,10 @@ type Router struct {
 	*BaseComputer
 }
 
-func newRouter(name string, networks []*Network) *Router {
-	return &Router{
-		BaseComputer: newBaseComputer(name, "ubuntu", networks),
+func newRouter(name, image string, networkIPv4 map[string]string, networks []*Network) *Router {
+	router := &Router{
+		BaseComputer: newBaseComputer(name, image, networks),
 	}
+	router.NetworkIPv4 = networkIPv4
+	return router
 }
