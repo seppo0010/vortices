@@ -44,23 +44,20 @@ func main() {
 func runTests(image string) bool {
 	passed := true
 	for _, test := range []func(s string) error{testICECandidatesGather} {
+		testName := runtime.FuncForPC(reflect.ValueOf(test).Pointer()).Name()
+		log.Printf("running test %v", testName)
 		err := test(image)
 		if err != nil {
-			log.Printf("test %v failed: %s", runtime.FuncForPC(reflect.ValueOf(test).Pointer()).Name(), err.Error())
+			log.Printf("test %v failed: %s", testName, err.Error())
 			passed = false
+		} else {
+			log.Printf("finished OK test %v", testName)
 		}
 	}
 	return passed
 }
 
-func startImage(image string) ([]*Computer, error) {
-	setup := dc.NewSetup()
-	network1 := setup.NewNetwork("network1")
-	network2 := setup.NewNetwork("network2")
-	computers := []*Computer{
-		&Computer{Computer: setup.NewComputer("computer", image, []*dc.Network{network1, network2})},
-		&Computer{Computer: setup.NewComputer("computer2", image, []*dc.Network{network1})},
-	}
+func startSetup(setup *dc.Setup) ([]*Computer, error) {
 	f, err := os.Create("docker-compose.yml")
 	if err != nil {
 		return nil, err
@@ -79,7 +76,8 @@ func startImage(image string) ([]*Computer, error) {
 		log.Fatalf("failed to start docker-compose: %s", err.Error())
 	}
 
-	for _, computer := range computers {
+	computers := make([]*Computer, len(setup.Computers))
+	for i, computer := range setup.Computers {
 		cmd = exec.Command("docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", computer.Name)
 		var stdout bytes.Buffer
 		cmd.Stdout = &stdout
@@ -87,7 +85,10 @@ func startImage(image string) ([]*Computer, error) {
 		if err != nil {
 			log.Fatalf("failed to run docker inspect: %s", err.Error())
 		}
-		computer.IPAddresses = strings.Split(strings.Trim(string(stdout.Bytes()), " \n"), " ")
+		computers[i] = &Computer{
+			Computer:    computer,
+			IPAddresses: strings.Split(strings.Trim(string(stdout.Bytes()), " \n"), " "),
+		}
 	}
 
 	return computers, nil
@@ -112,7 +113,12 @@ func checkCandidatesMatch(candidates []*Candidate, ipaddresses []string) error {
 }
 
 func testICECandidatesGather(image string) error {
-	computers, err := startImage(image)
+	setup := dc.NewSetup()
+	network1 := setup.NewNetwork("network1")
+	network2 := setup.NewNetwork("network2")
+	setup.NewComputer("computer", image, "", []*dc.Network{network1, network2})
+	setup.NewComputer("computer2", image, "", []*dc.Network{network1})
+	computers, err := startSetup(setup)
 	if err != nil {
 		return err
 	}

@@ -7,8 +7,3 @@ type Network struct {
 func newNetwork(name string) *Network {
 	return &Network{Name: name}
 }
-
-type Setup struct {
-	Computers []*Computer
-	Networks  []*Network
-}

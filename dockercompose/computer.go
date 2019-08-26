@@ -2,13 +2,13 @@ package dockercompose
 
 import "fmt"
 
-type Computer struct {
+type BaseComputer struct {
 	Name     string
 	Image    string
 	Networks []*Network
 }
 
-func (comp *Computer) ToYML() string {
+func (comp *BaseComputer) ToYML() string {
 	networks := ""
 	if len(comp.Networks) > 0 {
 		networks = "    networks:\n"
@@ -23,10 +23,22 @@ func (comp *Computer) ToYML() string {
 `, comp.Name, comp.Name, comp.Image, networks)
 }
 
-func newComputer(name, image string, networks []*Network) *Computer {
-	return &Computer{
+func newBaseComputer(name, image string, networks []*Network) *BaseComputer {
+	return &BaseComputer{
 		Name:     name,
 		Image:    image,
 		Networks: networks,
 	}
+}
+
+func newComputer(name, image, gateway string, networks []*Network) *Computer {
+	return &Computer{
+		BaseComputer: newBaseComputer(name, image, networks),
+		Gateway:      gateway,
+	}
+}
+
+type Computer struct {
+	*BaseComputer
+	Gateway string
 }

@@ -2,8 +2,14 @@ package dockercompose
 
 import "fmt"
 
+type Setup struct {
+	Computers []*Computer
+	Routers   []*Router
+	Networks  []*Network
+}
+
 func NewSetup() *Setup {
-	return &Setup{Computers: []*Computer{}, Networks: []*Network{}}
+	return &Setup{Computers: []*Computer{}, Networks: []*Network{}, Routers: []*Router{}}
 }
 
 func (s *Setup) NewNetwork(name string) *Network {
@@ -12,8 +18,8 @@ func (s *Setup) NewNetwork(name string) *Network {
 	return network
 }
 
-func (s *Setup) NewComputer(name, image string, networks []*Network) *Computer {
-	computer := newComputer(name, image, networks)
+func (s *Setup) NewComputer(name, image, gateway string, networks []*Network) *Computer {
+	computer := newComputer(name, image, gateway, networks)
 	s.Computers = append(s.Computers, computer)
 	return computer
 }
