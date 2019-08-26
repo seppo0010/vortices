@@ -17,9 +17,10 @@ func (comp *Computer) ToYML() string {
 		}
 	}
 	return fmt.Sprintf(`  %s:
+    container_name: %s
     image: %s
 %s
-`, comp.Name, comp.Image, networks)
+`, comp.Name, comp.Name, comp.Image, networks)
 }
 
 func newComputer(name, image string, networks []*Network) *Computer {
