@@ -49,15 +49,27 @@ func main() {
 		log.Fatalf("%s", err.Error())
 	}
 
-	if !runTests(image, router) {
+	if !runTests(image, router, os.Args[2:]) {
 		os.Exit(1)
 	}
 }
 
-func runTests(image, router string) bool {
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+func runTests(image, router string, tests []string) bool {
 	passed := true
 	for _, test := range []func(image, router string) error{testICECandidatesGather, testGateway} {
 		testName := runtime.FuncForPC(reflect.ValueOf(test).Pointer()).Name()
+		if len(tests) > 0 && !contains(tests, testName) {
+			log.Printf("skipping test %v", testName)
+			continue
+		}
 		log.Printf("running test %v", testName)
 		err := test(image, router)
 		if err != nil {
@@ -104,15 +116,15 @@ func startSetup(setup *dc.Setup) ([]*Computer, error) {
 		}
 	}
 
-    for _, router := range setup.Routers {
+	for _, router := range setup.Routers {
 		cmd = exec.Command("./router/start-router", router.Name)
-        cmd.Stdout = os.Stderr
-        cmd.Stderr = os.Stderr
+		cmd.Stdout = os.Stderr
+		cmd.Stderr = os.Stderr
 		err = cmd.Run()
 		if err != nil {
 			log.Fatalf("failed to start router: %s", err.Error())
 		}
-    }
+	}
 
 	return computers, nil
 }
@@ -136,7 +148,6 @@ func checkCandidatesMatch(candidates []*Candidate, ipaddresses []string) error {
 }
 
 func testICECandidatesGather(image, router string) error {
-	return nil
 	setup := dc.NewSetup()
 	network1 := setup.NewNetwork("network1")
 	network2 := setup.NewNetwork("network2")
