@@ -131,8 +131,6 @@ func startSetup(setup *dc.Setup) ([]*Computer, error) {
 
 	for _, router := range setup.Routers {
 		cmd = exec.Command("./router/start-router", router.Name)
-		cmd.Stdout = os.Stderr
-		cmd.Stderr = os.Stderr
 		err = cmd.Run()
 		if err != nil {
 			log.Fatalf("failed to start router: %s", err.Error())
@@ -204,7 +202,7 @@ func testGateway(image, router string) error {
 		return err
 	}
 	defer stopSetup(setup)
-	_, err := computers[0].Ping(computers[1].IPAddresses[0])
+	_, err = computers[0].Ping(computers[1].IPAddresses[0])
 	if err != nil {
 		return err
 	}
