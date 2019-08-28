@@ -11,7 +11,6 @@ import (
 
 type Computer struct {
 	*dc.Computer
-	IPAddresses []string
 }
 
 type Candidate struct {
@@ -19,7 +18,7 @@ type Candidate struct {
 }
 
 func (c *Computer) GatherCandidates() ([]*Candidate, error) {
-	res, err := http.Get(fmt.Sprintf("http://%s:8080/gather-candidates", c.IPAddresses[0]))
+	res, err := http.Get(fmt.Sprintf("http://%s:8080/gather-candidates", c.GetIPAddress()))
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +31,7 @@ func (c *Computer) GatherCandidates() ([]*Candidate, error) {
 }
 
 func (c *Computer) Ping(ip string) ([]float64, error) {
-	res, err := http.PostForm(fmt.Sprintf("http://%s:8080/ping", c.IPAddresses[0]), url.Values{"ip": {ip}, "times": {"3"}})
+	res, err := http.PostForm(fmt.Sprintf("http://%s:8080/ping", c.GetIPAddress()), url.Values{"ip": {ip}, "times": {"3"}})
 	if err != nil {
 		return nil, err
 	}

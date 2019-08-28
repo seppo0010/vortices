@@ -1,6 +1,12 @@
 package dockercompose
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+	"log"
+	"os/exec"
+	"strings"
+)
 
 type BaseComputer struct {
 	Name        string
@@ -45,4 +51,40 @@ func newComputer(name, image, gateway string, networks []*Network) *Computer {
 type Computer struct {
 	*BaseComputer
 	Gateway string
+}
+
+func (comp *BaseComputer) GetIPAddress() string {
+	ips, err := comp.GetAllIPAddresses()
+	if err != nil {
+		log.Fatalf("failed to get ip addresses: %s", err.Error())
+	}
+	return ips[0]
+}
+
+func (comp *BaseComputer) GetAllIPAddresses() ([]string, error) {
+	cmd := exec.Command("docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", comp.Name)
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	err := cmd.Run()
+	if err != nil {
+		return nil, err
+	}
+	return strings.Split(strings.Trim(string(stdout.Bytes()), " \n"), " "), nil
+}
+
+func (comp *Computer) Start() error {
+	if comp.Gateway != "" {
+		cmd := exec.Command("docker", "exec", "--privileged", comp.Name, "ip", "route", "del", "default")
+		err := cmd.Run()
+		if err != nil {
+			return err
+		}
+
+		cmd = exec.Command("docker", "exec", "--privileged", comp.Name, "ip", "route", "add", "default", "via", comp.Gateway)
+		err = cmd.Run()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

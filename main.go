@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
-	"strings"
 
 	dc "github.com/seppo0010/vortices/dockercompose"
 )
@@ -82,72 +81,6 @@ func runTests(image, router string, tests []string) bool {
 	return passed
 }
 
-func startSetup(setup *dc.Setup) ([]*Computer, error) {
-	f, err := os.Create("docker-compose.yml")
-	if err != nil {
-		return nil, err
-	}
-	_, err = f.WriteString(setup.ToYML())
-	if err != nil {
-		return nil, err
-	}
-	f.Close()
-
-	var stderr bytes.Buffer
-	cmd := exec.Command("docker-compose", "up", "-d")
-	cmd.Stderr = &stderr
-	err = cmd.Run()
-	if err != nil {
-		log.Fatalf("failed to start docker-compose: %s", err.Error())
-	}
-
-	computers := make([]*Computer, len(setup.Computers))
-	for i, computer := range setup.Computers {
-		cmd = exec.Command("docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", computer.Name)
-		var stdout bytes.Buffer
-		cmd.Stdout = &stdout
-		err = cmd.Run()
-		if err != nil {
-			log.Fatalf("failed to run docker inspect: %s", err.Error())
-		}
-		computers[i] = &Computer{
-			Computer:    computer,
-			IPAddresses: strings.Split(strings.Trim(string(stdout.Bytes()), " \n"), " "),
-		}
-		if computer.Gateway != "" {
-			cmd = exec.Command("docker", "exec", "--privileged", computer.Name, "ip", "route", "del", "default")
-			err = cmd.Run()
-			if err != nil {
-				log.Fatalf("failed to remove default gateway: %s", err.Error())
-			}
-
-			cmd = exec.Command("docker", "exec", "--privileged", computer.Name, "ip", "route", "add", "default", "via", computer.Gateway)
-			err = cmd.Run()
-			if err != nil {
-				log.Fatalf("failed to add default gateway: %s", err.Error())
-			}
-		}
-	}
-
-	for _, router := range setup.Routers {
-		cmd = exec.Command("./router/start-router", router.Name)
-		err = cmd.Run()
-		if err != nil {
-			log.Fatalf("failed to start router: %s", err.Error())
-		}
-	}
-
-	return computers, nil
-}
-
-func stopSetup(setup *dc.Setup) {
-	cmd := exec.Command("docker-compose", "down")
-	err := cmd.Run()
-	if err != nil {
-		log.Fatalf("failed to stop docker-compose: %s", err.Error())
-	}
-}
-
 func checkCandidatesMatch(candidates []*Candidate, ipaddresses []string) error {
 	if len(candidates) != len(ipaddresses) {
 		return fmt.Errorf("expected %d candidates, got %d", len(ipaddresses), len(candidates))
@@ -170,19 +103,25 @@ func testICECandidatesGather(image, router string) error {
 	setup := dc.NewSetup()
 	network1 := setup.NewNetwork("network1", "172.18.0.0/24")
 	network2 := setup.NewNetwork("network2", "172.19.0.0/24")
-	setup.NewComputer("computer", image, "", []*dc.Network{network1, network2})
-	setup.NewComputer("computer2", image, "", []*dc.Network{network1})
-	computers, err := startSetup(setup)
+	computers := []*dc.Computer{
+		setup.NewComputer("computer", image, "", []*dc.Network{network1, network2}),
+		setup.NewComputer("computer2", image, "", []*dc.Network{network1}),
+	}
+	err := setup.Start()
 	if err != nil {
 		return err
 	}
-	defer stopSetup(setup)
+	defer setup.Stop()
 	for _, computer := range computers {
-		candidates, err := computer.GatherCandidates()
+		candidates, err := (&Computer{computer}).GatherCandidates()
 		if err != nil {
 			return err
 		}
-		err = checkCandidatesMatch(candidates, computer.IPAddresses)
+		ips, err := computer.GetAllIPAddresses()
+		if err != nil {
+			return err
+		}
+		err = checkCandidatesMatch(candidates, ips)
 		if err != nil {
 			return err
 		}
@@ -195,14 +134,20 @@ func testGateway(image, router string) error {
 	network1 := setup.NewNetwork("network1", "172.20.0.0/24")
 	internet := setup.NewNetwork("internet", "172.21.0.0/24")
 	setup.NewRouter("myrouter", router, map[string]string{"network1": "172.20.0.8"}, []*dc.Network{network1, internet})
-	setup.NewComputer("computer", image, "172.20.0.8", []*dc.Network{network1})
-	setup.NewComputer("computer2", image, "", []*dc.Network{internet})
-	computers, err := startSetup(setup)
+	computers := []*dc.Computer{
+		setup.NewComputer("computer", image, "172.20.0.8", []*dc.Network{network1}),
+		setup.NewComputer("computer2", image, "", []*dc.Network{internet}),
+	}
+	err := setup.Start()
 	if err != nil {
 		return err
 	}
-	defer stopSetup(setup)
-	_, err = computers[0].Ping(computers[1].IPAddresses[0])
+	defer setup.Stop()
+	ips, err := computers[1].GetAllIPAddresses()
+	if err != nil {
+		return err
+	}
+	_, err = (&Computer{computers[0]}).Ping(ips[0])
 	if err != nil {
 		return err
 	}

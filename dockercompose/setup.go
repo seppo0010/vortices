@@ -1,5 +1,12 @@
 package dockercompose
 
+import (
+	"bytes"
+	"log"
+	"os"
+	"os/exec"
+)
+
 type Setup struct {
 	Computers []*Computer
 	Routers   []*Router
@@ -44,4 +51,51 @@ services:
 		yml += network.ToYML()
 	}
 	return yml
+}
+
+func (setup *Setup) Start() error {
+	f, err := os.Create("docker-compose.yml")
+	if err != nil {
+		return err
+	}
+	_, err = f.WriteString(setup.ToYML())
+	if err != nil {
+		return err
+	}
+	f.Close()
+
+	var stderr bytes.Buffer
+	cmd := exec.Command("docker-compose", "up", "-d")
+	cmd.Stderr = &stderr
+	err = cmd.Run()
+	if err != nil {
+		log.Fatalf("failed to start docker-compose: %s", err.Error())
+	}
+
+	for _, computer := range setup.Computers {
+		err = computer.Start()
+		if err != nil {
+			setup.Stop()
+			return err
+		}
+	}
+
+	for _, router := range setup.Routers {
+		err = router.Start()
+		if err != nil {
+			setup.Stop()
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (setup *Setup) Stop() error {
+	cmd := exec.Command("docker-compose", "down")
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+	return nil
 }
