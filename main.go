@@ -129,6 +129,14 @@ func startSetup(setup *dc.Setup) ([]*Computer, error) {
 	return computers, nil
 }
 
+func stopSetup(setup *dc.Setup) {
+	cmd := exec.Command("docker-compose", "down")
+	err := cmd.Run()
+	if err != nil {
+		log.Fatalf("failed to stop docker-compose: %s", err.Error())
+	}
+}
+
 func checkCandidatesMatch(candidates []*Candidate, ipaddresses []string) error {
 	if len(candidates) != len(ipaddresses) {
 		return fmt.Errorf("expected %d candidates, got %d", len(ipaddresses), len(candidates))
@@ -157,6 +165,7 @@ func testICECandidatesGather(image, router string) error {
 	if err != nil {
 		return err
 	}
+	defer stopSetup(setup)
 	for _, computer := range computers {
 		candidates, err := computer.GatherCandidates()
 		if err != nil {
@@ -180,5 +189,6 @@ func testGateway(image, router string) error {
 	if err != nil {
 		return err
 	}
+	defer stopSetup(setup)
 	return nil
 }
