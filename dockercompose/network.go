@@ -1,9 +1,16 @@
 package dockercompose
 
+import "fmt"
+
 type Network struct {
-	Name string
+	Name   string
+	Subnet string
 }
 
-func newNetwork(name string) *Network {
-	return &Network{Name: name}
+func newNetwork(name, subnet string) *Network {
+	return &Network{Name: name, Subnet: subnet}
+}
+
+func (n *Network) ToYML() string {
+	return fmt.Sprintf("  %s:\n    internal: true\n    ipam:\n      config:\n      - subnet: %s\n", n.Name, n.Subnet)
 }

@@ -29,7 +29,7 @@ func buildDockerPath(path string) (string, error) {
 	}
 	submatches := regexp.MustCompile(`Successfully built ([a-fA-F0-9]*)`).FindStringSubmatch(string(out.Bytes()))
 	if len(submatches) == 0 {
-		return "", fmt.Errorf("could not find docker image tag. Full output:\n%s", out.Bytes)
+		return "", fmt.Errorf("could not find docker image tag. Full output:\n%s", string(out.Bytes()))
 	}
 
 	return submatches[1], nil
@@ -157,8 +157,8 @@ func checkCandidatesMatch(candidates []*Candidate, ipaddresses []string) error {
 
 func testICECandidatesGather(image, router string) error {
 	setup := dc.NewSetup()
-	network1 := setup.NewNetwork("network1")
-	network2 := setup.NewNetwork("network2")
+	network1 := setup.NewNetwork("network1", "172.18.0.0/24")
+	network2 := setup.NewNetwork("network2", "172.19.0.0/24")
 	setup.NewComputer("computer", image, "", []*dc.Network{network1, network2})
 	setup.NewComputer("computer2", image, "", []*dc.Network{network1})
 	computers, err := startSetup(setup)
@@ -181,10 +181,10 @@ func testICECandidatesGather(image, router string) error {
 
 func testGateway(image, router string) error {
 	setup := dc.NewSetup()
-	network1 := setup.NewNetwork("network1")
-	setup.NewRouter("myrouter", router, map[string]string{"network1": "172.19.0.8"}, []*dc.Network{network1})
+	network1 := setup.NewNetwork("network1", "172.20.0.0/24")
+	setup.NewRouter("myrouter", router, map[string]string{"network1": "172.20.0.8"}, []*dc.Network{network1})
 	computer := setup.NewComputer("computer", image, "", []*dc.Network{network1})
-	computer.Gateway = "172.19.0.8"
+	computer.Gateway = "172.20.0.8"
 	_, err := startSetup(setup)
 	if err != nil {
 		return err

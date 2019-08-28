@@ -1,7 +1,5 @@
 package dockercompose
 
-import "fmt"
-
 type Setup struct {
 	Computers []*Computer
 	Routers   []*Router
@@ -12,8 +10,8 @@ func NewSetup() *Setup {
 	return &Setup{Computers: []*Computer{}, Networks: []*Network{}, Routers: []*Router{}}
 }
 
-func (s *Setup) NewNetwork(name string) *Network {
-	network := newNetwork(name)
+func (s *Setup) NewNetwork(name, subnet string) *Network {
+	network := newNetwork(name, subnet)
 	s.Networks = append(s.Networks, network)
 	return network
 }
@@ -43,7 +41,7 @@ services:
 	}
 	yml += "networks:\n"
 	for _, network := range s.Networks {
-		yml += fmt.Sprintf("  %s:\n", network.Name)
+		yml += network.ToYML()
 	}
 	return yml
 }
