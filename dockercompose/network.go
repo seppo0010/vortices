@@ -12,5 +12,5 @@ func newNetwork(name, subnet string) *Network {
 }
 
 func (n *Network) ToYML() string {
-	return fmt.Sprintf("  %s:\n    internal: true\n    ipam:\n      config:\n      - subnet: %s\n", n.Name, n.Subnet)
+	return fmt.Sprintf("  %s:\n    ipam:\n      config:\n      - subnet: %s\n", n.Name, n.Subnet)
 }

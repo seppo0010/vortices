@@ -26,12 +26,10 @@ services:
 
 networks:
   network1:
-    internal: true
     ipam:
       config:
       - subnet: 1.2.3.4/5
   network2:
-    internal: true
     ipam:
       config:
       - subnet: 2.3.4.5/6

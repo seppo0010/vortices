@@ -114,6 +114,19 @@ func startSetup(setup *dc.Setup) ([]*Computer, error) {
 			Computer:    computer,
 			IPAddresses: strings.Split(strings.Trim(string(stdout.Bytes()), " \n"), " "),
 		}
+		if computer.Gateway != "" {
+			cmd = exec.Command("docker", "exec", "--privileged", computer.Name, "ip", "route", "del", "default")
+			err = cmd.Run()
+			if err != nil {
+				log.Fatalf("failed to remove default gateway: %s", err.Error())
+			}
+
+			cmd = exec.Command("docker", "exec", "--privileged", computer.Name, "ip", "route", "add", "default", "via", computer.Gateway)
+			err = cmd.Run()
+			if err != nil {
+				log.Fatalf("failed to add default gateway: %s", err.Error())
+			}
+		}
 	}
 
 	for _, router := range setup.Routers {
@@ -182,13 +195,18 @@ func testICECandidatesGather(image, router string) error {
 func testGateway(image, router string) error {
 	setup := dc.NewSetup()
 	network1 := setup.NewNetwork("network1", "172.20.0.0/24")
-	setup.NewRouter("myrouter", router, map[string]string{"network1": "172.20.0.8"}, []*dc.Network{network1})
-	computer := setup.NewComputer("computer", image, "", []*dc.Network{network1})
-	computer.Gateway = "172.20.0.8"
-	_, err := startSetup(setup)
+	internet := setup.NewNetwork("internet", "172.21.0.0/24")
+	setup.NewRouter("myrouter", router, map[string]string{"network1": "172.20.0.8"}, []*dc.Network{network1, internet})
+	setup.NewComputer("computer", image, "172.20.0.8", []*dc.Network{network1})
+	setup.NewComputer("computer2", image, "", []*dc.Network{internet})
+	computers, err := startSetup(setup)
 	if err != nil {
 		return err
 	}
 	defer stopSetup(setup)
+	_, err := computers[0].Ping(computers[1].IPAddresses[0])
+	if err != nil {
+		return err
+	}
 	return nil
 }
