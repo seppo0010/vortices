@@ -2,6 +2,7 @@ package dockercompose
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os/exec"
@@ -17,6 +18,7 @@ type BaseComputer struct {
 
 func (comp *BaseComputer) ToYML() string {
 	networks := ""
+	ports := ""
 	if len(comp.Networks) > 0 {
 		networks = "    networks:\n"
 		for _, network := range comp.Networks {
@@ -30,14 +32,16 @@ func (comp *BaseComputer) ToYML() string {
     container_name: %s
     image: %s
 %s
-`, comp.Name, comp.Name, comp.Image, networks)
+%s
+`, comp.Name, comp.Name, comp.Image, networks, ports)
 }
 
 func newBaseComputer(name, image string, networks []*Network) *BaseComputer {
 	return &BaseComputer{
-		Name:     name,
-		Image:    image,
-		Networks: networks,
+		Name:        name,
+		Image:       image,
+		Networks:    networks,
+		NetworkIPv4: map[string]string{},
 	}
 }
 
@@ -59,6 +63,44 @@ func (comp *BaseComputer) GetIPAddress() string {
 		log.Fatalf("failed to get ip addresses: %s", err.Error())
 	}
 	return ips[0]
+}
+
+func (comp *BaseComputer) GetIPAddressForNetwork(network *Network) (string, error) {
+	cmd := exec.Command("docker", "inspect", "-f", "{{json .NetworkSettings.Networks}}", comp.Name)
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	err := cmd.Run()
+	if err != nil {
+		return "", err
+	}
+	var networks map[string]map[string]interface{}
+	err = json.Unmarshal(stdout.Bytes(), &networks)
+	if err != nil {
+		return "", err
+	}
+
+	for network_id, data := range networks {
+		cmd := exec.Command("docker", "inspect", "-f", "{{range $key, $value := .Labels}}{{if eq $key \"com.docker.compose.network\"}}{{$value}}{{end}}{{end}}", network_id)
+		var stdout bytes.Buffer
+		cmd.Stdout = &stdout
+		err := cmd.Run()
+		if err != nil {
+			return "", err
+		}
+
+		if strings.Trim(string(stdout.Bytes()), " \n") == network.Name {
+			ip, found := data["IPAddress"]
+			if !found {
+				return "", fmt.Errorf("ip address not found")
+			}
+			ipStr, ok := ip.(string)
+			if !ok {
+				return "", fmt.Errorf("invalid ip address, got %T", ip)
+			}
+			return ipStr, nil
+		}
+	}
+	return "", fmt.Errorf("could not find ip address for %s in network %s", comp.Name, network.Name)
 }
 
 func (comp *BaseComputer) GetAllIPAddresses() ([]string, error) {

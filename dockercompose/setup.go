@@ -8,9 +8,10 @@ import (
 )
 
 type Setup struct {
-	Computers []*Computer
-	Routers   []*Router
-	Networks  []*Network
+	Computers   []*Computer
+	STUNServers []*STUNServer
+	Routers     []*Router
+	Networks    []*Network
 }
 
 func NewSetup() *Setup {
@@ -35,12 +36,21 @@ func (s *Setup) NewRouter(name, image string, networkIPv4 map[string]string, net
 	return router
 }
 
+func (s *Setup) NewSTUNServer(name string, networks []*Network) *STUNServer {
+	stunServer := newSTUNServer(name, networks)
+	s.STUNServers = append(s.STUNServers, stunServer)
+	return stunServer
+}
+
 func (s *Setup) ToYML() string {
 	yml := `
-version: "2"
+version: "2.1"
 services:
 `
 	for _, comp := range s.Computers {
+		yml += comp.ToYML()
+	}
+	for _, comp := range s.STUNServers {
 		yml += comp.ToYML()
 	}
 	for _, comp := range s.Routers {

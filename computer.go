@@ -42,3 +42,16 @@ func (c *Computer) Ping(ip string) ([]float64, error) {
 	err = json.NewDecoder(res.Body).Decode(&target)
 	return target.Times, err
 }
+
+func (c *Computer) GetIPFromSTUN(stun string) (string, error) {
+	res, err := http.PostForm(fmt.Sprintf("http://%s:8080/get-ip-from-stun", c.GetIPAddress()), url.Values{"stun": {stun}})
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+	target := struct {
+		IP string `json:"ip"`
+	}{}
+	err = json.NewDecoder(res.Body).Decode(&target)
+	return target.IP, err
+}

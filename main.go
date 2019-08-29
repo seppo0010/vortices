@@ -63,7 +63,7 @@ func contains(s []string, e string) bool {
 }
 func runTests(image, router string, tests []string) bool {
 	passed := true
-	for _, test := range []func(image, router string) error{testICECandidatesGather, testGateway} {
+	for _, test := range []func(image, router string) error{testICECandidatesGather, testGateway, testStun} {
 		testName := runtime.FuncForPC(reflect.ValueOf(test).Pointer()).Name()
 		if len(tests) > 0 && !contains(tests, testName) {
 			log.Printf("skipping test %v", testName)
@@ -150,6 +150,36 @@ func testGateway(image, router string) error {
 	_, err = (&Computer{computers[0]}).Ping(ips[0])
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func testStun(image, router string) error {
+	setup := dc.NewSetup()
+	network1 := setup.NewNetwork("network1", "172.20.0.0/24")
+	internet := setup.NewNetwork("internet", "172.21.0.0/24")
+	routerComputer := setup.NewRouter("myrouter", router, map[string]string{"network1": "172.20.0.8"}, []*dc.Network{network1, internet})
+	computer := setup.NewComputer("computer", image, "172.20.0.8", []*dc.Network{network1})
+	stun := setup.NewSTUNServer("stun-server", []*dc.Network{internet})
+	err := setup.Start()
+	if err != nil {
+		return err
+	}
+	defer setup.Stop()
+	ips, err := stun.GetAllIPAddresses()
+	if err != nil {
+		return err
+	}
+	stunIP, err := (&Computer{computer}).GetIPFromSTUN(ips[0] + ":3478")
+	if err != nil {
+		return err
+	}
+	routerIP, err := routerComputer.GetIPAddressForNetwork(internet)
+	if err != nil {
+		return err
+	}
+	if stunIP != routerIP {
+		return fmt.Errorf("expected stun ip (%s) to match router ip (%s)", stunIP, routerIP)
 	}
 	return nil
 }
