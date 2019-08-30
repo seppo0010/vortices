@@ -45,7 +45,7 @@ func newBaseComputer(name, image string, networks []*Network) *BaseComputer {
 	}
 }
 
-func newComputer(name, image, gateway string, networks []*Network) *Computer {
+func newComputer(name, image string, gateway *Router, networks []*Network) *Computer {
 	return &Computer{
 		BaseComputer: newBaseComputer(name, image, networks),
 		Gateway:      gateway,
@@ -54,7 +54,7 @@ func newComputer(name, image, gateway string, networks []*Network) *Computer {
 
 type Computer struct {
 	*BaseComputer
-	Gateway string
+	Gateway *Router
 }
 
 func (comp *BaseComputer) GetIPAddress() string {
@@ -114,15 +114,38 @@ func (comp *BaseComputer) GetAllIPAddresses() ([]string, error) {
 	return strings.Split(strings.Trim(string(stdout.Bytes()), " \n"), " "), nil
 }
 
+func findSharedNetwork(networks1, networks2 []*Network) *Network {
+	for _, n1 := range networks1 {
+		for _, n2 := range networks2 {
+			if n1 == n2 {
+				return n1
+			}
+		}
+	}
+	return nil
+}
+
+func (comp *BaseComputer) GetIPAddressFor(comp2 *BaseComputer) (string, error) {
+	network := findSharedNetwork(comp.Networks, comp2.Networks)
+	if network == nil {
+		return "", fmt.Errorf("no shared network found between %s and %s", comp.Name, comp2.Name)
+	}
+	return comp2.GetIPAddressForNetwork(network)
+}
+
 func (comp *Computer) Start() error {
-	if comp.Gateway != "" {
+	if comp.Gateway != nil {
+		ipAddress, err := comp.GetIPAddressFor(comp.Gateway.BaseComputer)
+		if err != nil {
+			return err
+		}
 		cmd := exec.Command("docker", "exec", "--privileged", comp.Name, "ip", "route", "del", "default")
-		err := cmd.Run()
+		err = cmd.Run()
 		if err != nil {
 			return err
 		}
 
-		cmd = exec.Command("docker", "exec", "--privileged", comp.Name, "ip", "route", "add", "default", "via", comp.Gateway)
+		cmd = exec.Command("docker", "exec", "--privileged", comp.Name, "ip", "route", "add", "default", "via", ipAddress)
 		err = cmd.Run()
 		if err != nil {
 			return err

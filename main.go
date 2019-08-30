@@ -104,8 +104,8 @@ func testICECandidatesGather(image, router string) error {
 	network1 := setup.NewNetwork("network1", "172.18.0.0/24")
 	network2 := setup.NewNetwork("network2", "172.19.0.0/24")
 	computers := []*dc.Computer{
-		setup.NewComputer("computer", image, "", []*dc.Network{network1, network2}),
-		setup.NewComputer("computer2", image, "", []*dc.Network{network1}),
+		setup.NewComputer("computer", image, nil, []*dc.Network{network1, network2}),
+		setup.NewComputer("computer2", image, nil, []*dc.Network{network1}),
 	}
 	err := setup.Start()
 	if err != nil {
@@ -133,10 +133,10 @@ func testGateway(image, router string) error {
 	setup := dc.NewSetup()
 	network1 := setup.NewNetwork("network1", "172.20.0.0/24")
 	internet := setup.NewNetwork("internet", "172.21.0.0/24")
-	setup.NewRouter("myrouter", router, map[string]string{"network1": "172.20.0.8"}, []*dc.Network{network1, internet})
+	gateway := setup.NewRouter("myrouter", router, map[string]string{"network1": "172.20.0.8"}, []*dc.Network{network1, internet})
 	computers := []*dc.Computer{
-		setup.NewComputer("computer", image, "172.20.0.8", []*dc.Network{network1}),
-		setup.NewComputer("computer2", image, "", []*dc.Network{internet}),
+		setup.NewComputer("computer", image, gateway, []*dc.Network{network1}),
+		setup.NewComputer("computer2", image, nil, []*dc.Network{internet}),
 	}
 	err := setup.Start()
 	if err != nil {
@@ -159,7 +159,7 @@ func testStun(image, router string) error {
 	network1 := setup.NewNetwork("network1", "172.20.0.0/24")
 	internet := setup.NewNetwork("internet", "172.21.0.0/24")
 	routerComputer := setup.NewRouter("myrouter", router, map[string]string{"network1": "172.20.0.8"}, []*dc.Network{network1, internet})
-	computer := setup.NewComputer("computer", image, "172.20.0.8", []*dc.Network{network1})
+	computer := setup.NewComputer("computer", image, routerComputer, []*dc.Network{network1})
 	stun := setup.NewSTUNServer("stun-server", []*dc.Network{internet})
 	err := setup.Start()
 	if err != nil {

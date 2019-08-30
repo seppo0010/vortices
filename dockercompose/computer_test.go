@@ -7,7 +7,7 @@ import (
 )
 
 func TestComputerYMLTwoNetworks(t *testing.T) {
-	yml := newComputer("computer", "ubuntu", "", []*Network{
+	yml := newComputer("computer", "ubuntu", nil, []*Network{
 		newNetwork("network1", "1.2.3.4/5"),
 		newNetwork("network2", "2.3.4.5/6"),
 	}).ToYML()

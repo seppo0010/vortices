@@ -24,7 +24,7 @@ func (s *Setup) NewNetwork(name, subnet string) *Network {
 	return network
 }
 
-func (s *Setup) NewComputer(name, image, gateway string, networks []*Network) *Computer {
+func (s *Setup) NewComputer(name, image string, gateway *Router, networks []*Network) *Computer {
 	computer := newComputer(name, image, gateway, networks)
 	s.Computers = append(s.Computers, computer)
 	return computer
