@@ -95,13 +95,12 @@ func runTests(image, router string, tests []string) bool {
 	}
 	wg.Wait()
 	close(resultChan)
-	passed := true
 	for res := range resultChan {
 		if !res.skipped && res.err != nil {
-			passed = false
+			return false
 		}
 	}
-	return passed
+	return true
 }
 
 func checkCandidatesMatch(candidates []*Candidate, ipaddresses []string) error {
