@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
+	"sync"
 
 	dc "github.com/seppo0010/vortices/dockercompose"
 )
@@ -62,20 +63,42 @@ func contains(s []string, e string) bool {
 	return false
 }
 func runTests(image, router string, tests []string) bool {
+	type result struct {
+		testName string
+		err      error
+		skipped  bool
+	}
+	type testRunner func(image, router string) error
+	allTests := []testRunner{testICECandidatesGather, testGateway, testStun}
+	resultChan := make(chan result, len(allTests))
+	var wg sync.WaitGroup
+	for _, tr := range allTests {
+		wg.Add(1)
+		go func(tr testRunner) {
+			testName := runtime.FuncForPC(reflect.ValueOf(tr).Pointer()).Name()
+			res := result{testName: testName}
+			log.Printf("running test %v", res.testName)
+			if len(tests) > 0 && !contains(tests, testName) {
+				log.Printf("skipped test %v", res.testName)
+				res.skipped = true
+			} else {
+				res.err = tr(image, router)
+				if res.err == nil {
+					log.Printf("finished OK test %v", res.testName)
+				} else {
+					log.Printf("test %v failed: %s", res.testName, res.err.Error())
+				}
+			}
+			resultChan <- res
+			wg.Done()
+		}(tr)
+	}
+	wg.Wait()
+	close(resultChan)
 	passed := true
-	for _, test := range []func(image, router string) error{testICECandidatesGather, testGateway, testStun} {
-		testName := runtime.FuncForPC(reflect.ValueOf(test).Pointer()).Name()
-		if len(tests) > 0 && !contains(tests, testName) {
-			log.Printf("skipping test %v", testName)
-			continue
-		}
-		log.Printf("running test %v", testName)
-		err := test(image, router)
-		if err != nil {
-			log.Printf("test %v failed: %s", testName, err.Error())
+	for res := range resultChan {
+		if !res.skipped && res.err != nil {
 			passed = false
-		} else {
-			log.Printf("finished OK test %v", testName)
 		}
 	}
 	return passed
@@ -101,8 +124,8 @@ func checkCandidatesMatch(candidates []*Candidate, ipaddresses []string) error {
 
 func testICECandidatesGather(image, router string) error {
 	setup := dc.NewSetup()
-	network1 := setup.NewNetwork("network1", "172.18.0.0/24")
-	network2 := setup.NewNetwork("network2", "172.19.0.0/24")
+	network1 := setup.NewNetwork("network1")
+	network2 := setup.NewNetwork("network2")
 	computers := []*dc.Computer{
 		setup.NewComputer("computer", image, nil, []*dc.Network{network1, network2}),
 		setup.NewComputer("computer2", image, nil, []*dc.Network{network1}),
@@ -131,8 +154,8 @@ func testICECandidatesGather(image, router string) error {
 
 func testGateway(image, router string) error {
 	setup := dc.NewSetup()
-	network1 := setup.NewNetwork("network1", "172.20.0.0/24")
-	internet := setup.NewNetwork("internet", "172.21.0.0/24")
+	network1 := setup.NewNetwork("network1")
+	internet := setup.NewNetwork("internet")
 	gateway := setup.NewRouter("myrouter", router, []*dc.Network{network1, internet})
 	computers := []*dc.Computer{
 		setup.NewComputer("computer", image, gateway, []*dc.Network{network1}),
@@ -156,8 +179,8 @@ func testGateway(image, router string) error {
 
 func testStun(image, router string) error {
 	setup := dc.NewSetup()
-	network1 := setup.NewNetwork("network1", "172.20.0.0/24")
-	internet := setup.NewNetwork("internet", "172.21.0.0/24")
+	network1 := setup.NewNetwork("network1")
+	internet := setup.NewNetwork("internet")
 	routerComputer := setup.NewRouter("myrouter", router, []*dc.Network{network1, internet})
 	computer := setup.NewComputer("computer", image, routerComputer, []*dc.Network{network1})
 	stun := setup.NewSTUNServer("stun-server", []*dc.Network{internet})

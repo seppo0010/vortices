@@ -2,12 +2,18 @@ package dockercompose
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
+	"path"
+
+	"github.com/google/uuid"
 )
 
 type Setup struct {
+	ID          string
+	tmpDir      string
 	Computers   []*Computer
 	STUNServers []*STUNServer
 	Routers     []*Router
@@ -15,29 +21,32 @@ type Setup struct {
 }
 
 func NewSetup() *Setup {
-	return &Setup{Computers: []*Computer{}, Networks: []*Network{}, Routers: []*Router{}}
+	return &Setup{ID: uuid.New().String(), Computers: []*Computer{}, Networks: []*Network{}, Routers: []*Router{}}
 }
 
-func (s *Setup) NewNetwork(name, subnet string) *Network {
-	network := newNetwork(name, subnet)
+func (s *Setup) makeName(name string) string {
+	return fmt.Sprintf("%s_%s", s.ID, name)
+}
+func (s *Setup) NewNetwork(name string) *Network {
+	network := newNetwork(s.makeName(name))
 	s.Networks = append(s.Networks, network)
 	return network
 }
 
 func (s *Setup) NewComputer(name, image string, gateway *Router, networks []*Network) *Computer {
-	computer := newComputer(name, image, gateway, networks)
+	computer := newComputer(s.makeName(name), image, gateway, networks)
 	s.Computers = append(s.Computers, computer)
 	return computer
 }
 
-func (s *Setup) NewRouter(name, image string, networkIPv4 map[string]string, networks []*Network) *Router {
-	router := newRouter(name, image, networkIPv4, networks)
+func (s *Setup) NewRouter(name, image string, networks []*Network) *Router {
+	router := newRouter(s.makeName(name), image, networks)
 	s.Routers = append(s.Routers, router)
 	return router
 }
 
 func (s *Setup) NewSTUNServer(name string, networks []*Network) *STUNServer {
-	stunServer := newSTUNServer(name, networks)
+	stunServer := newSTUNServer(s.makeName(name), networks)
 	s.STUNServers = append(s.STUNServers, stunServer)
 	return stunServer
 }
@@ -64,7 +73,12 @@ services:
 }
 
 func (setup *Setup) Start() error {
-	f, err := os.Create("docker-compose.yml")
+	setup.tmpDir = path.Join(os.TempDir(), setup.ID)
+	err := os.MkdirAll(setup.tmpDir, 0744)
+	if err != nil {
+		return err
+	}
+	f, err := os.Create(path.Join(setup.tmpDir, "docker-compose.yml"))
 	if err != nil {
 		return err
 	}
@@ -76,9 +90,11 @@ func (setup *Setup) Start() error {
 
 	var stderr bytes.Buffer
 	cmd := exec.Command("docker-compose", "up", "-d")
+	cmd.Dir = setup.tmpDir
 	cmd.Stderr = &stderr
 	err = cmd.Run()
 	if err != nil {
+		log.Printf("%s", stderr.String())
 		log.Fatalf("failed to start docker-compose: %s", err.Error())
 	}
 
@@ -103,7 +119,12 @@ func (setup *Setup) Start() error {
 
 func (setup *Setup) Stop() error {
 	cmd := exec.Command("docker-compose", "down")
+	cmd.Dir = setup.tmpDir
 	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+	err = os.RemoveAll(setup.tmpDir)
 	if err != nil {
 		return err
 	}

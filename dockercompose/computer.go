@@ -10,9 +10,9 @@ import (
 )
 
 type BaseComputer struct {
-	Name        string
-	Image       string
-	Networks    []*Network
+	Name     string
+	Image    string
+	Networks []*Network
 }
 
 func (comp *BaseComputer) ToYML() string {
@@ -34,9 +34,9 @@ func (comp *BaseComputer) ToYML() string {
 
 func newBaseComputer(name, image string, networks []*Network) *BaseComputer {
 	return &BaseComputer{
-		Name:        name,
-		Image:       image,
-		Networks:    networks,
+		Name:     name,
+		Image:    image,
+		Networks: networks,
 	}
 }
 
