@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 type runRequest struct {
@@ -31,32 +33,37 @@ func (s *Setup) exec(r runRequest) runResponse {
 	rr.stderr = stderr.Bytes()
 	if rr.err != nil {
 		log.Printf("command failed, creating logs in %s", s.tmpDir)
-
-		f, err := os.Create(path.Join(s.tmpDir, "argv"))
+		dir := path.Join(s.tmpDir, uuid.New().String())
+		err := os.MkdirAll(dir, 0744)
 		if err != nil {
-			log.Printf("error creating argv file (%s): %s", s.tmpDir, err.Error())
+			log.Printf("error creating directory (%s): %s", dir, err.Error())
+		}
+
+		f, err := os.Create(path.Join(dir, "argv"))
+		if err != nil {
+			log.Printf("error creating argv file (%s): %s", dir, err.Error())
 		}
 		_, err = f.WriteString(strings.Join(r.args, " "))
 		if err != nil {
-			log.Printf("error writing argv (%s): %s", s.tmpDir, err.Error())
+			log.Printf("error writing argv (%s): %s", dir, err.Error())
 		}
 
-		f, err = os.Create(path.Join(s.tmpDir, "stdout"))
+		f, err = os.Create(path.Join(dir, "stdout"))
 		if err != nil {
-			log.Printf("error creating stdout file (%s): %s", s.tmpDir, err.Error())
+			log.Printf("error creating stdout file (%s): %s", dir, err.Error())
 		}
 		_, err = f.Write(rr.stdout)
 		if err != nil {
-			log.Printf("error writing stdout (%s): %s", s.tmpDir, err.Error())
+			log.Printf("error writing stdout (%s): %s", dir, err.Error())
 		}
 
-		f, err = os.Create(path.Join(s.tmpDir, "stderr"))
+		f, err = os.Create(path.Join(dir, "stderr"))
 		if err != nil {
-			log.Printf("error creating stderr file (%s): %s", s.tmpDir, err.Error())
+			log.Printf("error creating stderr file (%s): %s", dir, err.Error())
 		}
 		_, err = f.Write(rr.stderr)
 		if err != nil {
-			log.Printf("error writing stderr (%s): %s", s.tmpDir, err.Error())
+			log.Printf("error writing stderr (%s): %s", dir, err.Error())
 		}
 	}
 	return rr

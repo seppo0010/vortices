@@ -1,13 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"reflect"
-	"regexp"
 	"runtime"
 	"sort"
 	"sync"
@@ -15,36 +12,16 @@ import (
 	dc "github.com/seppo0010/vortices/dockercompose"
 )
 
-func buildDockerPath(path string) (string, error) {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return "", fmt.Errorf("path %s does not exist", path)
-	}
-
-	var out bytes.Buffer
-	cmd := exec.Command("docker", "build", path)
-	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
-		return "", fmt.Errorf("failed to build docker image at path %s: %s", path, err.Error())
-	}
-	submatches := regexp.MustCompile(`Successfully built ([a-fA-F0-9]*)`).FindStringSubmatch(string(out.Bytes()))
-	if len(submatches) == 0 {
-		return "", fmt.Errorf("could not find docker image tag. Full output:\n%s", string(out.Bytes()))
-	}
-
-	return submatches[1], nil
-}
-
 func main() {
 	if len(os.Args) < 2 {
 		log.Fatalf("usage: %s <path to target>", os.Args[0])
 	}
-	router, err := buildDockerPath("./router")
+	router, err := dc.BuildDockerPath("./router")
 	if err != nil {
 		log.Fatalf("%s", err.Error())
 	}
 
-	image, err := buildDockerPath(os.Args[1])
+	image, err := dc.BuildDockerPath(os.Args[1])
 	if err != nil {
 		log.Fatalf("%s", err.Error())
 	}

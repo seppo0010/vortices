@@ -23,3 +23,35 @@ func TestComputerYMLTwoNetworks(t *testing.T) {
 
 `, setup.ID, setup.ID))
 }
+
+func TestGetAllIPAddresses(t *testing.T) {
+	setup := NewSetup()
+	image, err := BuildDocker(`
+FROM ubuntu
+CMD ["sleep", "infinity"]
+	`)
+	if !assert.Nil(t, err, "failed to create image") {
+		return
+	}
+	computer := setup.NewComputer("computer", image, nil, []*Network{
+		setup.NewNetwork("network1"),
+		setup.NewNetwork("network2"),
+	})
+	setup.Start()
+	ips, err := computer.GetAllIPAddresses()
+	assert.Nil(t, err)
+	assert.Equal(t, len(ips), 2, "expected 2 IP addresses")
+	for _, ip := range ips {
+		ping := setup.exec(runRequest{args: []string{"ping", ip, "-c", "1", "-w", "1", "-q"}})
+		if !assert.Nil(t, ping.err) {
+			return
+		}
+	}
+	setup.Stop()
+	for _, ip := range ips {
+		ping := setup.exec(runRequest{args: []string{"ping", ip, "-c", "1", "-w", "1", "-q"}})
+		if !assert.NotNil(t, ping.err) {
+			return
+		}
+	}
+}

@@ -71,7 +71,7 @@ services:
 }
 
 func (setup *Setup) Start() error {
-	setup.tmpDir = path.Join(os.TempDir(), setup.ID)
+	setup.tmpDir = path.Join(os.TempDir(), "vortices", setup.ID)
 	err := os.MkdirAll(setup.tmpDir, 0744)
 	if err != nil {
 		return err
