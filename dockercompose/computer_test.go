@@ -26,7 +26,7 @@ func TestComputerYMLTwoNetworks(t *testing.T) {
 
 func TestGetAllIPAddresses(t *testing.T) {
 	setup := NewSetup()
-	image, err := BuildDocker(`
+	image, err := BuildDocker("noop ubuntu", `
 FROM ubuntu
 CMD ["sleep", "infinity"]
 	`)

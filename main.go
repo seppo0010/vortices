@@ -16,12 +16,16 @@ func main() {
 	if len(os.Args) < 2 {
 		log.Fatalf("usage: %s <path to target>", os.Args[0])
 	}
-	router, err := dc.BuildDockerPath("./router")
+	router, err := dc.BuildDocker("router", `
+FROM ubuntu
+RUN apt update && apt install -y iptables tcpdump
+CMD ["sleep", "infinity"]
+    `)
 	if err != nil {
 		log.Fatalf("%s", err.Error())
 	}
 
-	image, err := dc.BuildDockerPath(os.Args[1])
+	image, err := dc.BuildDockerPath(os.Args[1], os.Args[1])
 	if err != nil {
 		log.Fatalf("%s", err.Error())
 	}
