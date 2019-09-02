@@ -1,11 +1,9 @@
 package dockercompose
 
 import (
-	"bytes"
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"path"
 
 	"github.com/google/uuid"
@@ -34,19 +32,19 @@ func (s *Setup) NewNetwork(name string) *Network {
 }
 
 func (s *Setup) NewComputer(name, image string, gateway *Router, networks []*Network) *Computer {
-	computer := newComputer(s.makeName(name), image, gateway, networks)
+	computer := newComputer(s, name, image, gateway, networks)
 	s.Computers = append(s.Computers, computer)
 	return computer
 }
 
 func (s *Setup) NewRouter(name, image string, networks []*Network) *Router {
-	router := newRouter(s.makeName(name), image, networks)
+	router := newRouter(s, name, image, networks)
 	s.Routers = append(s.Routers, router)
 	return router
 }
 
 func (s *Setup) NewSTUNServer(name string, networks []*Network) *STUNServer {
-	stunServer := newSTUNServer(s.makeName(name), networks)
+	stunServer := newSTUNServer(s, name, networks)
 	s.STUNServers = append(s.STUNServers, stunServer)
 	return stunServer
 }
@@ -88,14 +86,9 @@ func (setup *Setup) Start() error {
 	}
 	f.Close()
 
-	var stderr bytes.Buffer
-	cmd := exec.Command("docker-compose", "up", "-d")
-	cmd.Dir = setup.tmpDir
-	cmd.Stderr = &stderr
-	err = cmd.Run()
-	if err != nil {
-		log.Printf("%s", stderr.String())
-		log.Fatalf("failed to start docker-compose: %s", err.Error())
+	cmd := setup.exec(runRequest{args: []string{"docker-compose", "up", "-d"}})
+	if cmd.err != nil {
+		log.Fatalf("failed to start docker-compose")
 	}
 
 	for _, computer := range setup.Computers {
@@ -118,13 +111,11 @@ func (setup *Setup) Start() error {
 }
 
 func (setup *Setup) Stop() error {
-	cmd := exec.Command("docker-compose", "down")
-	cmd.Dir = setup.tmpDir
-	err := cmd.Run()
-	if err != nil {
-		return err
+	cmd := setup.exec(runRequest{args: []string{"docker-compose", "down"}})
+	if cmd.err != nil {
+		return cmd.err
 	}
-	err = os.RemoveAll(setup.tmpDir)
+	err := os.RemoveAll(setup.tmpDir)
 	if err != nil {
 		return err
 	}

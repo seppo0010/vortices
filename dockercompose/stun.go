@@ -4,6 +4,6 @@ type STUNServer struct {
 	*BaseComputer
 }
 
-func newSTUNServer(name string, networks []*Network) *STUNServer {
-	return &STUNServer{BaseComputer: newBaseComputer(name, "gortc/gortcd", networks)}
+func newSTUNServer(setup *Setup, name string, networks []*Network) *STUNServer {
+	return &STUNServer{BaseComputer: newBaseComputer(setup, name, "gortc/gortcd", networks)}
 }

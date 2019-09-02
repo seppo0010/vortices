@@ -1,15 +1,14 @@
 package dockercompose
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
-	"os/exec"
 	"strings"
 )
 
 type BaseComputer struct {
+	setup    *Setup
 	Name     string
 	Image    string
 	Networks []*Network
@@ -32,17 +31,18 @@ func (comp *BaseComputer) ToYML() string {
 `, comp.Name, comp.Name, comp.Image, networks, ports)
 }
 
-func newBaseComputer(name, image string, networks []*Network) *BaseComputer {
+func newBaseComputer(setup *Setup, name, image string, networks []*Network) *BaseComputer {
 	return &BaseComputer{
-		Name:     name,
+		setup:    setup,
+		Name:     setup.makeName(name),
 		Image:    image,
 		Networks: networks,
 	}
 }
 
-func newComputer(name, image string, gateway *Router, networks []*Network) *Computer {
+func newComputer(setup *Setup, name, image string, gateway *Router, networks []*Network) *Computer {
 	return &Computer{
-		BaseComputer: newBaseComputer(name, image, networks),
+		BaseComputer: newBaseComputer(setup, name, image, networks),
 		Gateway:      gateway,
 	}
 }
@@ -61,29 +61,27 @@ func (comp *BaseComputer) GetIPAddress() string {
 }
 
 func (comp *BaseComputer) GetIPAddressForNetwork(network *Network) (string, error) {
-	cmd := exec.Command("docker", "inspect", "-f", "{{json .NetworkSettings.Networks}}", comp.Name)
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
-	err := cmd.Run()
-	if err != nil {
-		return "", err
+	networksExec := comp.setup.exec(runRequest{
+		args: []string{"docker", "inspect", "-f", "{{json .NetworkSettings.Networks}}", comp.Name},
+	})
+	if networksExec.err != nil {
+		return "", networksExec.err
 	}
 	var networks map[string]map[string]interface{}
-	err = json.Unmarshal(stdout.Bytes(), &networks)
+	err := json.Unmarshal(networksExec.stdout, &networks)
 	if err != nil {
 		return "", err
 	}
 
 	for network_id, data := range networks {
-		cmd := exec.Command("docker", "inspect", "-f", "{{range $key, $value := .Labels}}{{if eq $key \"com.docker.compose.network\"}}{{$value}}{{end}}{{end}}", network_id)
-		var stdout bytes.Buffer
-		cmd.Stdout = &stdout
-		err := cmd.Run()
-		if err != nil {
+		networkLabelExec := comp.setup.exec(runRequest{
+			args: []string{"docker", "inspect", "-f", "{{range $key, $value := .Labels}}{{if eq $key \"com.docker.compose.network\"}}{{$value}}{{end}}{{end}}", network_id},
+		})
+		if networkLabelExec.err != nil {
 			return "", err
 		}
 
-		if strings.Trim(string(stdout.Bytes()), " \n") == network.Name {
+		if strings.Trim(string(networkLabelExec.stdout), " \n") == network.Name {
 			ip, found := data["IPAddress"]
 			if !found {
 				return "", fmt.Errorf("ip address not found")
@@ -99,14 +97,13 @@ func (comp *BaseComputer) GetIPAddressForNetwork(network *Network) (string, erro
 }
 
 func (comp *BaseComputer) GetAllIPAddresses() ([]string, error) {
-	cmd := exec.Command("docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", comp.Name)
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
-	err := cmd.Run()
-	if err != nil {
-		return nil, err
+	networksExec := comp.setup.exec(runRequest{
+		args: []string{"docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", comp.Name},
+	})
+	if networksExec.err != nil {
+		return nil, networksExec.err
 	}
-	return strings.Split(strings.Trim(string(stdout.Bytes()), " \n"), " "), nil
+	return strings.Split(strings.Trim(string(networksExec.stdout), " \n"), " "), nil
 }
 
 func findSharedNetwork(networks1, networks2 []*Network) *Network {
@@ -134,16 +131,18 @@ func (comp *Computer) Start() error {
 		if err != nil {
 			return err
 		}
-		cmd := exec.Command("docker", "exec", "--privileged", comp.Name, "ip", "route", "del", "default")
-		err = cmd.Run()
-		if err != nil {
+		ipRouteDelDefault := comp.setup.exec(runRequest{
+			args: []string{"docker", "exec", "--privileged", comp.Name, "ip", "route", "del", "default"},
+		})
+		if ipRouteDelDefault.err != nil {
 			return err
 		}
 
-		cmd = exec.Command("docker", "exec", "--privileged", comp.Name, "ip", "route", "add", "default", "via", ipAddress)
-		err = cmd.Run()
-		if err != nil {
-			return err
+		ipRouteAddDefault := comp.setup.exec(runRequest{
+			args: []string{"docker", "exec", "--privileged", comp.Name, "ip", "route", "add", "default", "via", ipAddress},
+		})
+		if ipRouteAddDefault.err != nil {
+			return ipRouteAddDefault.err
 		}
 	}
 	return nil
