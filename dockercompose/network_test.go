@@ -7,10 +7,7 @@ import (
 )
 
 func TestNetworkYML(t *testing.T) {
-	yml := newNetwork("network", "1.2.3.4/5").ToYML()
+	yml := newNetwork("network").ToYML()
 	assert.Equal(t, yml, `  network:
-    ipam:
-      config:
-      - subnet: 1.2.3.4/5
 `)
 }

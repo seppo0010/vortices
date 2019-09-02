@@ -1,6 +1,7 @@
 package dockercompose
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -8,30 +9,25 @@ import (
 
 func TestSetupYMLTwoNetworks(t *testing.T) {
 	setup := NewSetup()
-	network1 := setup.NewNetwork("network1", "1.2.3.4/5")
-	network2 := setup.NewNetwork("network2", "2.3.4.5/6")
+	network1 := setup.NewNetwork("network1")
+	network2 := setup.NewNetwork("network2")
 	setup.NewComputer("computer", "ubuntu", nil, []*Network{
 		network1,
 		network2,
 	}).ToYML()
-	assert.Equal(t, setup.ToYML(), `
-version: "2"
+	assert.Equal(t, setup.ToYML(), fmt.Sprintf(`
+version: "2.1"
 services:
-  computer:
-    container_name: computer
+  %s_computer:
+    container_name: %s_computer
     image: ubuntu
     networks:
-      network1:
-      network2:
+      %s_network1:
+      %s_network2:
+
 
 networks:
-  network1:
-    ipam:
-      config:
-      - subnet: 1.2.3.4/5
-  network2:
-    ipam:
-      config:
-      - subnet: 2.3.4.5/6
-`)
+  %s_network1:
+  %s_network2:
+`, setup.ID, setup.ID, setup.ID, setup.ID, setup.ID, setup.ID))
 }
