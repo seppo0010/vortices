@@ -37,8 +37,8 @@ func (s *Setup) NewComputer(name, image string, gateway *Router, networks []*Net
 	return computer
 }
 
-func (s *Setup) NewRouter(name, image string, networks []*Network) *Router {
-	router := newRouter(s, name, image, networks)
+func (s *Setup) NewRouter(name, image string, lan, internet *Network) *Router {
+	router := newRouter(s, name, image, lan, internet)
 	s.Routers = append(s.Routers, router)
 	return router
 }
@@ -115,9 +115,12 @@ func (setup *Setup) Stop() error {
 	if cmd.err != nil {
 		return cmd.err
 	}
-	err := os.RemoveAll(setup.tmpDir)
-	if err != nil {
-		return err
+	for _, router := range setup.Routers {
+		err := router.Stop()
+		if err != nil {
+			setup.Stop()
+			return err
+		}
 	}
 	return nil
 }

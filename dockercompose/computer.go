@@ -125,7 +125,14 @@ func (comp *BaseComputer) GetIPAddressFor(comp2 *BaseComputer) (string, error) {
 	return comp2.GetIPAddressForNetwork(network)
 }
 
+func (comp *BaseComputer) Start() error {
+	return nil
+}
+
 func (comp *Computer) Start() error {
+	if err := comp.BaseComputer.Start(); err != nil {
+		return err
+	}
 	if comp.Gateway != nil {
 		ipAddress, err := comp.GetIPAddressFor(comp.Gateway.BaseComputer)
 		if err != nil {

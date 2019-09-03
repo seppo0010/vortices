@@ -8,10 +8,37 @@ import (
 
 	"github.com/pion/ice"
 	"github.com/pion/stun"
+	"github.com/pion/webrtc/v2"
 	"github.com/sparrc/go-ping"
 )
 
+func configToWebrtcConfig(conf string) (webrtc.Configuration, error) {
+	config := webrtc.Configuration{}
+	if conf == "" {
+		return config, nil
+	}
+	type configuration struct {
+		ICEServers []struct {
+			URLs []string `json:"urls"`
+		} `json:"ice_servers"`
+	}
+	received := configuration{}
+	err := json.Unmarshal([]byte(conf), &received)
+	if err != nil {
+		return config, err
+	}
+	if len(received.ICEServers) > 0 {
+		config.ICEServers = make([]webrtc.ICEServer, len(received.ICEServers))
+		for i, server := range received.ICEServers {
+			config.ICEServers[i] = webrtc.ICEServer{
+				URLs: server.URLs,
+			}
+		}
+	}
+	return config, nil
+}
 func main() {
+	var peerConnection *webrtc.PeerConnection
 	http.HandleFunc("/gather-candidates", func(w http.ResponseWriter, r *http.Request) {
 		agent, err := ice.NewAgent(&ice.AgentConfig{NetworkTypes: []ice.NetworkType{
 			ice.NetworkTypeUDP4,
@@ -87,6 +114,114 @@ func main() {
 			w.Write([]byte(err.Error()))
 			return
 		}
+	})
+
+	http.HandleFunc("/create-offer", func(w http.ResponseWriter, r *http.Request) {
+		if peerConnection != nil {
+			w.WriteHeader(400)
+			w.Write([]byte("cannot create offer if peer connection already exists"))
+			return
+		}
+		config, err := configToWebrtcConfig(r.FormValue("config"))
+		if err != nil {
+			w.WriteHeader(400)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		pc, err := webrtc.NewPeerConnection(config)
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		peerConnection = pc
+		offer, err := pc.CreateOffer(nil)
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		err = pc.SetLocalDescription(offer)
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"sdp": offer.SDP,
+		})
+	})
+
+	http.HandleFunc("/create-answer", func(w http.ResponseWriter, r *http.Request) {
+		if peerConnection != nil {
+			w.WriteHeader(400)
+			w.Write([]byte("cannot create answer if peer connection already exists"))
+			return
+		}
+		config, err := configToWebrtcConfig(r.FormValue("config"))
+		if err != nil {
+			w.WriteHeader(400)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		pc, err := webrtc.NewPeerConnection(config)
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		peerConnection = pc
+		err = pc.SetRemoteDescription(webrtc.SessionDescription{
+			SDP:  r.FormValue("offer"),
+			Type: webrtc.SDPTypeOffer,
+		})
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		answer, err := pc.CreateAnswer(nil)
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		err = pc.SetLocalDescription(answer)
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"sdp": answer.SDP,
+		})
+	})
+
+	http.HandleFunc("/received-answer", func(w http.ResponseWriter, r *http.Request) {
+		if peerConnection == nil {
+			w.WriteHeader(400)
+			w.Write([]byte("cannot receive answer if peer connection does not exists"))
+			return
+		}
+		err := peerConnection.SetRemoteDescription(webrtc.SessionDescription{
+			SDP:  r.FormValue("answer"),
+			Type: webrtc.SDPTypeAnswer,
+		})
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		json.NewEncoder(w).Encode(nil)
+	})
+
+	http.HandleFunc("/get-ice-connection-state", func(w http.ResponseWriter, r *http.Request) {
+		if peerConnection == nil {
+			w.WriteHeader(400)
+			w.Write([]byte("no ICE connection state if peer connection does not exist"))
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{"state": peerConnection.ICEConnectionState().String()})
 	})
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
