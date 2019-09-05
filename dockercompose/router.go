@@ -44,22 +44,22 @@ func (router *Router) Start() error {
 		router.commands = append(router.commands, cmd)
 	}
 
-    /*
-	internetIP, err := router.GetIPAddressForNetwork(router.Internet)
-	if err != nil {
-		return err
-	}
-	lanIP, err := router.GetIPAddressForNetwork(router.LAN)
-	if err != nil {
-		return err
-	}
-    */
+	/*
+		internetIP, err := router.GetIPAddressForNetwork(router.Internet)
+		if err != nil {
+			return err
+		}
+		lanIP, err := router.GetIPAddressForNetwork(router.LAN)
+		if err != nil {
+			return err
+		}
+	*/
 	for _, rr := range []runRequest{
+		runRequest{args: []string{"docker", "exec", "--privileged", router.Name, "iptables", "-A", "FORWARD", "-i", "eth0", "-o", "eth1", "-j", "NFQUEUE", "--queue-num", "1"}},
+		runRequest{args: []string{"docker", "exec", "--privileged", router.Name, "iptables", "-A", "FORWARD", "-i", "eth1", "-o", "eth0", "-j", "NFQUEUE", "--queue-num", "2"}},
 		runRequest{args: []string{"docker", "exec", "--privileged", router.Name, "iptables", "-A", "FORWARD", "-i", "eth0", "-o", "eth1", "-m", "state", "--state", "RELATED,ESTABLISHED", "-j", "ACCEPT"}},
 		runRequest{args: []string{"docker", "exec", "--privileged", router.Name, "iptables", "-A", "FORWARD", "-i", "eth1", "-o", "eth0", "-j", "ACCEPT"}},
 		runRequest{args: []string{"docker", "exec", "--privileged", router.Name, "iptables", "-t", "nat", "-A", "POSTROUTING", "-o", "eth0", "-j", "MASQUERADE"}},
-		// runRequest{args: []string{"docker", "exec", "--privileged", router.Name, "iptables", "-t", "nat", "-A", "POSTROUTING", "-o", "eth0", "-j", "SNAT", "--to-source", internetIP}},
-		// runRequest{args: []string{"docker", "exec", "--privileged", router.Name, "iptables", "-t", "nat", "-A", "PREROUTING", "-i", "eth0", "-j", "DNAT", "--to-destination", lanIP}},
 	} {
 		cmd := router.setup.exec(rr)
 		if cmd.err != nil {

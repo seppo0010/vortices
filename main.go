@@ -17,11 +17,7 @@ func main() {
 	if len(os.Args) < 2 {
 		log.Fatalf("usage: %s <path to target>", os.Args[0])
 	}
-	router, err := dc.BuildDocker("router", `
-FROM ubuntu
-RUN apt update && apt install -y iptables tcpdump iputils-ping traceroute
-CMD ["sleep", "infinity"]
-    `)
+	router, err := dc.BuildDockerPath("router", "router")
 	if err != nil {
 		log.Fatalf("%s", err.Error())
 	}

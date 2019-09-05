@@ -26,6 +26,7 @@ func (comp *BaseComputer) ToYML() string {
 	return fmt.Sprintf(`  %s:
     container_name: %s
     image: %s
+    privileged: true
 %s
 %s
 `, comp.Name, comp.Name, comp.Image, networks, ports)
