@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"reflect"
 	"runtime"
@@ -151,6 +153,16 @@ func testGateway(image, router string) error {
 	if err != nil {
 		return err
 	}
+	res, err := http.Get(fmt.Sprintf("http://%s:8080/", gateway.GetIPAddress()))
+	if err != nil {
+		return err
+	}
+	text, err := ioutil.ReadAll(res.Body)
+	res.Body.Close()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s", text)
 	return nil
 }
 

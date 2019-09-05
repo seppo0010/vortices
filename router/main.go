@@ -24,10 +24,14 @@ func real_callback(payload *nfqueue.Payload) int {
 	packet := gopacket.NewPacket(payload.Data, layers.LayerTypeIPv4, gopacket.Default)
 	// Get the TCP layer from this packet
 	if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
-		log += "This is a TCP packet!" + "\n"
 		// Get actual TCP data from this layer
 		tcp, _ := tcpLayer.(*layers.TCP)
 		log += fmt.Sprintf("From src port %d to dst port %d\n", tcp.SrcPort, tcp.DstPort)
+	}
+	if icmpLayer := packet.Layer(layers.LayerTypeICMPv4); icmpLayer != nil {
+		log += "This is an ICMP packet!" + "\n"
+		icmp, _ := icmpLayer.(*layers.ICMPv4)
+		log += fmt.Sprintf("icmp id: %d\n", icmp.Id)
 	}
 	// Iterate over all layers, printing out each layer type
 	for _, layer := range packet.Layers() {
@@ -35,7 +39,11 @@ func real_callback(payload *nfqueue.Payload) int {
 		log += gopacket.LayerDump(layer) + "\n"
 	}
 	log += "-- \n"
+	if icmpLayer := packet.Layer(layers.LayerTypeICMPv4); icmpLayer != nil {
+	payload.SetVerdict(nfqueue.NF_DROP)
+} else {
 	payload.SetVerdict(nfqueue.NF_ACCEPT)
+}
 	return 0
 }
 
